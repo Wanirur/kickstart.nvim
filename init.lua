@@ -91,7 +91,7 @@ vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.opt`
@@ -926,6 +926,213 @@ require('lazy').setup({
     --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
     --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
   },
+  {
+    'rcarriga/nvim-dap-ui',
+    dependencies = { 'mfussenegger/nvim-dap', 'nvim-neotest/nvim-nio', 'leoluz/nvim-dap-go', 'theHamsta/nvim-dap-virtual-text', 'williamboman/mason.nvim' },
+    config = function()
+      local dap = require 'dap'
+      local ui = require 'dapui'
+      dap.set_log_level 'DEBUG'
+
+      vim.keymap.set('n', '<leader>b', dap.toggle_breakpoint)
+      vim.keymap.set('n', '<leader><C-b>', function()
+        vim.ui.input({ prompt = 'Enter breakpoint condition:' }, function(cond)
+          dap.toggle_breakpoint(cond)
+        end)
+      end)
+      vim.keymap.set('n', '<leader>?', function()
+        ui.eval()
+      end)
+
+      vim.keymap.set('n', '<F1>', dap.continue)
+      vim.keymap.set('n', '<F2>', dap.step_into)
+      vim.keymap.set('n', '<F3>', dap.step_over)
+      vim.keymap.set('n', '<F4>', dap.step_out)
+      vim.keymap.set('n', '<F5>', dap.restart)
+      vim.keymap.set('n', '<F6>', dap.step_back)
+      vim.keymap.set('n', '<F7>', dap.disconnect)
+
+      ui.setup {
+
+        controls = {
+          element = 'scopes',
+          enabled = true,
+          icons = {
+            play = 'F1',
+            step_into = 'F2',
+            step_over = 'F3',
+            step_out = 'F4',
+            run_last = 'F5',
+            step_back = 'F6',
+            disconnect = 'F7',
+            pause = '',
+            terminate = '',
+          },
+        },
+        element_mappings = {
+          stacks = {
+            open = '<CR>',
+            expand = 'o',
+          },
+        },
+        expand_lines = true,
+        floating = {
+          border = 'single',
+          mappings = {
+            close = { 'q', '<Esc>' },
+          },
+        },
+        force_buffers = true,
+        icons = {
+          collapsed = '',
+          current_frame = '',
+          expanded = '',
+        },
+        layouts = {
+          {
+            elements = {
+              {
+                id = 'stacks',
+                size = 0.5,
+              },
+              {
+                id = 'watches',
+                size = 0.5,
+              },
+            },
+            position = 'left',
+            size = 30,
+          },
+          {
+            elements = {
+              {
+                id = 'scopes',
+                size = 1,
+              },
+            },
+            position = 'bottom',
+            size = 10,
+          },
+        },
+        mappings = {
+          edit = 'e',
+          expand = { '<CR>', '<2-LeftMouse>' },
+          open = 'o',
+          remove = 'd',
+          repl = 'r',
+          toggle = 't',
+        },
+        render = {
+          indent = 1,
+          max_value_lines = 100,
+        },
+      }
+
+      require('dapui.config.highlights').setup()
+
+      require('dap-go').setup()
+
+      require('nvim-dap-virtual-text').setup { enabled = true, enable_commands = true }
+
+      dap.adapters.codelldb = function(callback, config)
+        local program = config.program -- Access the resolved program path
+        callback {
+          type = 'server',
+          port = '13299',
+          executable = {
+            command = 'codelldb',
+            args = { '--port', '13299' },
+          },
+          options = {
+            initialize_timeout_sec = 10,
+          },
+          initCommands = {
+            'target create "' .. program .. '"',
+            'settings set target.use-all-available-dwarf true',
+          },
+        }
+      end
+
+      dap.configurations.zig = {
+        {
+          name = 'Launch',
+          type = 'codelldb',
+          request = 'launch',
+          program = function()
+            local co = coroutine.running()
+            local cb
+            if co then
+              cb = function(item)
+                coroutine.resume(co, item)
+              end
+            end
+            cb = vim.schedule_wrap(cb)
+            vim.ui.select(vim.fn.glob(vim.fn.getcwd() .. '/**/*.exe', false, true), {
+              prompt = 'Select executable',
+              kind = 'file',
+            }, cb)
+            return coroutine.yield()
+          end,
+          cwd = '${workspaceFolder}',
+          stopOnEntry = false,
+          args = {},
+        },
+      }
+
+      dap.listeners.before.attach.dapui_config = function()
+        ui.open()
+      end
+      dap.listeners.before.launch.dapui_config = function()
+        ui.open()
+      end
+
+      dap.listeners.before.event_terminated.dapui_config = function()
+        ui.close()
+      end
+      dap.listeners.before.event_exited.dapui_config = function()
+        ui.close()
+      end
+
+      vim.api.nvim_create_user_command('DapuiClose', function()
+        ui.close()
+      end, {})
+    end,
+  },
+
+  {
+    'stevearc/oil.nvim',
+    ---@module 'oil'
+    opts = {},
+    -- Optional dependencies
+    dependencies = { { 'echasnovski/mini.icons', opts = {} } },
+    -- dependencies = { "nvim-tree/nvim-web-devicons" }, -- use if you prefer nvim-web-devicons
+    -- Lazy loading is not recommended because it is very tricky to make it work correctly in all situations.
+    lazy = false,
+    config = function()
+      require('oil').setup {
+
+        -- Oil will take over directory buffers (e.g. `vim .` or `:e src/`)
+        -- Set to false if you want some other plugin (e.g. netrw) to open when you edit directories.
+        default_file_explorer = true,
+        -- Id is automatically added at the beginning, and name at the end
+        -- See :help oil-columns
+        columns = {
+          'icon',
+          -- "permissions",
+          -- "size",
+          -- "mtime",
+        },
+        -- Buffer-local options to use for oil buffers
+        buf_options = {
+          buflisted = false,
+          bufhidden = 'hide',
+        },
+        use_default_keymaps = true,
+      }
+
+      vim.keymap.set('n', '<Bslash>', ':Oil<CR>')
+    end,
+  },
 
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
   -- init.lua. If you want these files, they are in the repository, so you can just download them and
@@ -938,9 +1145,9 @@ require('lazy').setup({
   --
   -- require 'kickstart.plugins.debug',
   require 'kickstart.plugins.indent_line',
-  -- -- require 'kickstart.plugins.lint',
+  require 'kickstart.plugins.lint',
   require 'kickstart.plugins.autopairs',
-  require 'kickstart.plugins.neo-tree',
+  -- require 'kickstart.plugins.neo-tree',
   -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
