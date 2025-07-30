@@ -601,7 +601,7 @@ require('lazy').setup({
       --   end
       --   vim.diagnostic.config { signs = { text = diagnostic_signs } }
       -- end
-
+      vim.diagnostic.config { virtual_text = true }
       -- LSP servers and clients are able to communicate to each other what features they support.
       --  By default, Neovim doesn't support everything that is in the LSP specification.
       --  When you add nvim-cmp, luasnip, etc. Neovim now has *more* capabilities.
@@ -630,7 +630,6 @@ require('lazy').setup({
         --
         -- But for many setups, the LSP (`ts_ls`) will work just fine
         ts_ls = {},
-        zls = {},
         vuels = {},
         lua_ls = {
           -- cmd = { ... },
@@ -659,9 +658,13 @@ require('lazy').setup({
       -- You can add other tools here that you want Mason to install
       -- for you, so that they are available from within Neovim.
       local ensure_installed = vim.tbl_keys(servers or {})
+      ensure_installed['zls'] = nil
+
       vim.list_extend(ensure_installed, {
+        { 'zls', version = '0.13.0' },
         'stylua', -- Used to format Lua code
       })
+
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
       require('mason-lspconfig').setup {
@@ -1067,7 +1070,7 @@ require('lazy').setup({
               end
             end
             cb = vim.schedule_wrap(cb)
-            vim.ui.select(vim.fn.glob(vim.fn.getcwd() .. '/**/*.exe', false, true), {
+            vim.ui.select(vim.fn.glob(vim.fn.getcwd() .. '/**/*', false, true), {
               prompt = 'Select executable',
               kind = 'file',
             }, cb)
